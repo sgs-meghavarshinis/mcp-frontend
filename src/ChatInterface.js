@@ -33,19 +33,22 @@ const ChatInterface = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch("https://mcp-backend-one.vercel.app/run-agent/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: input,
-          model: selectedModel,
-          user_id: userId,
-          tenant_id: tenantId,
-          session_id: sessionId,
-        }),
-      });
+      const response = await fetch(
+        "https://mcp-backend-one.vercel.app/run-agent/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: input,
+            model: selectedModel,
+            user_id: userId,
+            tenant_id: tenantId,
+            session_id: sessionId,
+          }),
+        }
+      );
       console.log("Response :", response);
 
       if (!response.ok) {
@@ -55,9 +58,7 @@ const ChatInterface = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantContent = "";
-
-      // Create an empty assistant message immediately
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+let assistantMessageAdded = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -74,22 +75,28 @@ const ChatInterface = () => {
             if (data.type === "token") {
               assistantContent += data.content;
 
-               setMessages((prev) => {
-                const newMessages = [...prev];
-                const lastMessageIndex = newMessages.length - 1;
-
-                if (newMessages[lastMessageIndex]?.role === "assistant") {
-                  newMessages[lastMessageIndex] = {
-                    ...newMessages[lastMessageIndex],
-                    content: assistantContent,
-                  };
-                }
-
-                return newMessages;
-              });
-             await new Promise((resolve) => setTimeout(resolve, 50));
+              // Add assistant message only once, when the first token arrives
+              if (!assistantMessageAdded) {
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "assistant", content: assistantContent },
+                ]);
+                assistantMessageAdded = true;
+              } else {
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMessageIndex = newMessages.length - 1;
+                  if (newMessages[lastMessageIndex]?.role === "assistant") {
+                    newMessages[lastMessageIndex] = {
+                      ...newMessages[lastMessageIndex],
+                      content: assistantContent,
+                    };
+                  }
+                  return newMessages;
+                });
+              }
+              await new Promise((resolve) => setTimeout(resolve, 50));
               setIsLoading(false);
-             
             } else if (data.type === "complete") {
             } else if (data.type === "error") {
               throw new Error(data.content);
@@ -97,7 +104,6 @@ const ChatInterface = () => {
           } catch (e) {
             console.error("Error parsing JSON:", e, line);
           }
-
         }
       }
     } catch (error) {
